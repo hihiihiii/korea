@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="board">
+    
+    <resultMap type="com.spring.board.vo.ComCodeVo" id="comCodeVo">
+    	<result property="codeType" column="CODE_TYPE"/>
+    	<result property="codeId" column="CODE_ID"/>
+    	<result property="codeName" column="CODE_NAME"/>
+    </resultMap>
+	
+    <resultMap type="com.spring.board.vo.BoardVo" id="boardVo">
+    	<result property="codeName"		column="CODE_NAME"/>
+    	<result property="codeId"		column="CODE_ID"/>
+    	<result property="boardType" 	column="BOARD_TYPE"/>
+    	<result property="boardNum" 	column="BOARD_NUM"/>
+    	<result property="boardTitle" 	column="BOARD_TITLE"/>
+    	<result property="boardComment" column="BOARD_COMMENT"/>
+    </resultMap>
+    
+    <select id="codeNameList" parameterType="com.spring.board.vo.ComCodeVo" resultMap="comCodeVo">
+    	SELECT CODE_NAME ,CODE_ID
+    	FROM COM_CODE 
+    	WHERE CODE_TYPE='menu'
+    </select>
+    
+    <!-- 게시글 출력 -->
+    <select id="boardList" parameterType="com.spring.board.vo.PageVo" resultMap="boardVo">
+		SELECT 
+		  CODE_NAME
+		  ,BOARD_TYPE
+		  ,BOARD_NUM
+		  ,BOARD_TITLE
+		  ,BOARD_COMMENT
+		  ,TOTAL_CNT
+		FROM
+		(
+		  SELECT
+		      	CODE_NAME
+		      	,BOARD_TYPE
+				,BOARD_NUM
+				,BOARD_TITLE
+				,BOARD_COMMENT
+		      	,ROW_NUMBER() OVER(ORDER BY BOARD_NUM DESC) AS NUMROW
+		      	,COUNT(*) OVER() AS TOTAL_CNT
+			FROM
+				BOARD, COM_CODE
+			<trim prefix="WHERE" prefixOverrides="AND|OR">
+				BOARD.MODIFIER != 'DELETE'
+				AND
+				CODE_ID = BOARD_TYPE
+			<if test="codeId != null">
+				AND CODE_ID IN
+				<foreach collection="codeId" item="c" open="(" close=")" separator=",">
+					#{c}
+				</foreach>
+			</if>
+		</trim>
+		)
+		WHERE NUMROW BETWEEN (#{pageNo}-1)*10 + 1 AND (#{pageNo})*10
+    </select>
+    
+    <select id="boardTotal" parameterType="Integer" resultType="Integer">
+		  SELECT
+		      	COUNT(*) AS TOTAL_CNT
+			FROM
+				BOARD
+    </select>
+    	
+    <!-- 상세글 -->
+    <select id="boardView" parameterType="com.spring.board.vo.BoardVo" resultMap="boardVo">
+    	SELECT
+        	BOARD_TYPE
+			,BOARD_NUM
+			,BOARD_TITLE
+			,BOARD_COMMENT
+			,BOARD.CREATOR
+		FROM
+			BOARD, COM_CODE
+    	WHERE 	CODE_ID = BOARD_TYPE
+    	AND 	BOARD_NUM  = #{boardNum}
+    	AND     BOARD_TYPE = #{boardType}
+    </select>	
+    
+    <select id="boardInsert" parameterType="com.spring.board.vo.BoardVo" resultMap="boardVo">
+        INSERT INTO 
+        BOARD
+        (BOARD_TYPE <!-- a01,a02... 들어감 -->
+        ,BOARD_NUM
+        ,BOARD_TITLE
+        ,BOARD_COMMENT
+        ,CREATOR
+        ,CREATE_TIME
+        ,MODIFIER
+        ,MODIFIED_TIME
+        )
+        VALUES
+        (#{boardType}
+        ,(SELECT NVL(MAX(BOARD_NUM),0)+1
+	    FROM BOARD
+	    WHERE BOARD_TYPE = #{boardType})
+        ,#{boardTitle}
+        ,#{boardComment}
+        ,#{creator} <!--  jsp에선현재 세션 아이디 네임 -->
+        ,TO_CHAR(SYSDATE)
+        ,'SYSTEM'
+        ,TO_CHAR(SYSDATE)
+        )
+    </select>
+    
+    <!-- 수정 -->
+    <update id="boardUpdate" parameterType="com.spring.board.vo.BoardVo">
+    	UPDATE board
+    	   SET BOARD_TITLE = #{boardTitle},
+    	   	   BOARD_COMMENT = #{boardComment}
+    	 WHERE BOARD_NUM = #{boardNum}
+    	 AND BOARD_TYPE = #{boardType}
+    </update>
+    
+    <!-- 삭제 -->
+    <delete id="boardDelete" parameterType="com.spring.board.vo.BoardVo">
+    	DELETE
+    	  FROM board
+    	 WHERE BOARD_NUM = #{boardNum}
+    	 AND BOARD_TYPE = #{boardType}
+    </delete>
+</mapper>
